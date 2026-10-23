@@ -65,7 +65,7 @@ def create_streamlit_app():
     )
     
     stories_val = st.sidebar.slider(
-        "Stories",
+        "Owners",
         min_value=1,
         max_value=4,
         value=2
