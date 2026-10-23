@@ -42,46 +42,39 @@ def create_streamlit_app():
 
     st.sidebar.header("Input Features")
 
-    area_val = st.sidebar.slider(
-        "Area (sq ft)",
-        min_value=1500,
-        max_value=17000,
-        value=5000,
-        step=100
-    )
+    area_unit = st.sidebar.radio("Select Area Unit:", ["Square Feet (ft²)", "Square Meters (m²)"])
 
-    bedrooms_val = st.sidebar.slider(
-        "Bedrooms",
-        min_value=1,
-        max_value=6,
-        value=3
-    )
-    
-    bathrooms_val = st.sidebar.slider(
-        "Bathrooms",
-        min_value=1,
-        max_value=4,
-        value=1
-    )
-    
-    stories_val = st.sidebar.slider(
-        "Stories",
-        min_value=1,
-        max_value=4,
-        value=2
-    )
+    if area_unit == "Square Feet (ft²)":
+        area_input = st.sidebar.slider("Area (ft²)", min_value=1500, max_value=17000, value=5000, step=100)
+        area_sqft = area_input 
+        area_sqm = area_input / 10.76391
+    else:
+        area_input = st.sidebar.slider("Area (m²)", min_value=140, max_value=1600, value=460, step=10)
+        area_sqft = area_input * 10.76391 
+        area_sqm = area_input
+
+    area_display = f"{area_sqft:,.0f} ft² / {area_sqm:,.0f} m²"
+
+    bedrooms_val = st.sidebar.slider("Bedrooms", min_value=1, max_value=6, value=3)
+    bathrooms_val = st.sidebar.slider("Bathrooms", min_value=1, max_value=4, value=1)
+    stories_val = st.sidebar.slider("Stories", min_value=1, max_value=4, value=2)
 
     if st.sidebar.button("Calculate Prediction", type="primary"):
-        input_features = np.array([[area_val, bedrooms_val, bathrooms_val, stories_val]])
+        input_features = np.array([[area_sqft, bedrooms_val, bathrooms_val, stories_val]])
 
         pred_price = float(model.predict(input_features)[0])
 
-        price_per_sqft = pred_price / area_val if area_val > 0 else 0
+        if area_unit == "Square Feet (ft²)":
+            price_per_unit = pred_price / area_input if area_input > 0 else 0
+            unit_label = "ft²"
+        else:
+            price_per_unit = pred_price / area_input if area_input > 0 else 0
+            unit_label = "m²"
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("Predicted House Price", f"${pred_price:,.2f}")
-        col2.metric("Input Area", f"{area_val} sq ft")
-        col3.metric("Price per sq ft", f"${price_per_sqft:,.2f}")
+        col1.metric("Predicted House Price", f"${pred_price:,.0f}")
+        col2.metric("Input Area", area_display)
+        col3.metric(f"Price per {unit_label}", f"${price_per_unit:,.0f}")
 
         fig, ax = plt.subplots(figsize=(10, 5))
 
@@ -116,7 +109,7 @@ def create_streamlit_app():
         )
 
         ax.scatter(
-            [area_val],
+            [area_sqft], 
             [pred_price],
             color="red",
             s=120,
@@ -124,13 +117,21 @@ def create_streamlit_app():
             label=f"Your Prediction: ${pred_price:,.0f}"
         )
 
-        ax.axvline(area_val, color="red", linestyle=":", alpha=0.5)
+        ax.axvline(area_sqft, color="red", linestyle=":", alpha=0.5)
         ax.axhline(pred_price, color="red", linestyle=":", alpha=0.5)
 
-        ax.set_title("Pricing Model: Area vs House Price", fontsize=13)
-        ax.set_xlabel("Area (sq ft)", fontsize=11)
+        ax.set_title("Pricing Model: Area vs House Price", fontsize=13, pad=20)
+        
+        ax.set_xlabel("Area (ft²)", fontsize=11)
+        
+        secax = ax.secondary_xaxis('top', functions=(lambda x: x / 10.76391, lambda x: x * 10.76391))
+        secax.set_xlabel("Area (m²)", fontsize=11, color="blue")
+        secax.tick_params(axis='x', colors='blue') 
+
         ax.set_ylabel("Price ($)", fontsize=11)
+        
         ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
+
         ax.legend()
         ax.grid(True, linestyle="--", alpha=0.6)
 
