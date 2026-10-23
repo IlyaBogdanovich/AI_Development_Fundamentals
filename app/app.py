@@ -3,6 +3,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 from joblib import load
 
 def load_model_and_data():
@@ -129,6 +130,7 @@ def create_streamlit_app():
         ax.set_title("Pricing Model: Area vs House Price", fontsize=13)
         ax.set_xlabel("Area (sq ft)", fontsize=11)
         ax.set_ylabel("Price ($)", fontsize=11)
+        ax.yaxis.set_major_formatter(ticker.StrMethodFormatter('{x:,.0f}'))
         ax.legend()
         ax.grid(True, linestyle="--", alpha=0.6)
 
