@@ -1,80 +1,140 @@
-from __future__ import annotations
+import os
 import streamlit as st
-from joblib import load
 import numpy as np
-from numpy.typing import ArrayLike
+import pandas as pd
 import matplotlib.pyplot as plt
+from joblib import load
 
-def load_and_predict(X: ArrayLike, filename: str = "linear_regression_model.joblib") -> ArrayLike:
-    model = load(filename)
-    y = model.predict(X)
-    return y
+def load_model_and_data():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = os.path.join(current_dir, "linear_regression_model.joblib")
+    X_path = os.path.join(current_dir, "X.joblib")
+    y_path = os.path.join(current_dir, "y.joblib")
+
+    model = load(model_path)
+    X = load(X_path)
+    y = load(y_path)
+    
+    return model, X, y
 
 def create_streamlit_app():
-    st.title("House Price Prediction Model")
-    st.write("Enter the housing parameters below to predict the price:")
-    area = st.number_input("Area (sq ft):", min_value=1000, max_value=20000, value=5000, step=100)
-    bedrooms = st.slider("Bedrooms:", min_value=1, max_value=10, value=3)
-    bathrooms = st.slider("Bathrooms:", min_value=1, max_value=5, value=1)
-    stories = st.slider("Stories:", min_value=1, max_value=4, value=2)
+    st.set_page_config(
+        page_title="House Price Prediction",
+        page_icon="🏠",
+        layout="wide"
+    )
 
-    if st.button("Predict value"):
-        input_features = np.array([[area, bedrooms, bathrooms, stories]])
-        
-        prediction = load_and_predict(input_features)
-        predicted_price = prediction[0]
-        
-        st.success(f"Predicted Price: ${predicted_price:,.2f}")
-        
-        visualize_difference(input_features, predicted_price)
+    st.title("🏠 House Price Prediction Model")
+    st.markdown(
+        """
+        This application predicts **house prices** based on physical parameters like area, 
+        number of bedrooms, bathrooms, and stories using a trained Linear Regression model.
+        """
+    )
 
-def visualize_difference(input_features: np.ndarray, prediction: float):
-    X_filename = "X.joblib"
-    y_filename = "y.joblib"
+    try:
+        model, X, y = load_model_and_data()
+    except FileNotFoundError:
+        st.error("Model or data files not found. Please run `python model.py` first!")
+        return
 
-    X = load(X_filename)
-    y = load(y_filename)
+    st.sidebar.header("Input Features")
 
-    area_feature = input_features[0][0]
+    area_val = st.sidebar.slider(
+        "Area (sq ft)",
+        min_value=1500,
+        max_value=17000,
+        value=5000,
+        step=100
+    )
+
+    bedrooms_val = st.sidebar.slider(
+        "Bedrooms",
+        min_value=1,
+        max_value=6,
+        value=3
+    )
     
-    closest_idx = _index_of_closest(X['area'].values if hasattr(X, 'columns') else X[:, 0], area_feature)
-    actual_target = float(y.iloc[closest_idx] if hasattr(y, 'iloc') else y[closest_idx])
+    bathrooms_val = st.sidebar.slider(
+        "Bathrooms",
+        min_value=1,
+        max_value=4,
+        value=1
+    )
+    
+    stories_val = st.sidebar.slider(
+        "Stories",
+        min_value=1,
+        max_value=4,
+        value=2
+    )
 
-    difference = actual_target - prediction
+    if st.sidebar.button("Calculate Prediction", type="primary"):
+        input_features = np.array([[area_val, bedrooms_val, bathrooms_val, stories_val]])
 
-    fig = plt.figure(figsize=(8, 5))
+        pred_price = float(model.predict(input_features)[0])
 
-    areas = X['area'] if hasattr(X, 'columns') else X[:, 0]
-    plt.scatter(areas, y, color='grey', alpha=0.5, label='Dataset')
+        price_per_sqft = pred_price / area_val if area_val > 0 else 0
 
-    closest_area = areas.iloc[closest_idx] if hasattr(areas, 'iloc') else areas[closest_idx]
-    plt.scatter(closest_area, actual_target, color='blue', s=100, label='Actual Target (Similar Area)')
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Predicted House Price", f"${pred_price:,.2f}")
+        col2.metric("Input Area", f"{area_val} sq ft")
+        col3.metric("Price per sq ft", f"${price_per_sqft:,.2f}")
 
-    plt.scatter(area_feature, prediction, color='red', s=100, label='Predicted Target')
+        fig, ax = plt.subplots(figsize=(10, 5))
 
-    plt.legend()
-    plt.title("Prediction vs Actual Target (Based on Area)")
-    plt.xlabel('Area (sq ft)')
-    plt.ylabel('Price')
-    plt.grid(True)
+        areas = X['area'].values if hasattr(X, 'columns') else X[:, 0]
+        targets = y.values if hasattr(y, 'name') else y
 
-    plt.plot([area_feature, closest_area], [prediction, actual_target], 'k--')
+        ax.scatter(
+            areas,
+            targets,
+            color="gray",
+            alpha=0.6,
+            label="Historical Data (Dataset)"
+        )
 
-    mid_x = (area_feature + closest_area) / 2
-    mid_y = (prediction + actual_target) / 2
-    plt.annotate(f'Difference = ${difference:,.2f}', 
-                 xy=(mid_x, mid_y), 
-                 xytext=(10, 10), 
-                 textcoords='offset points',
-                 fontsize=10, 
-                 bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="black", lw=1, alpha=0.8))
+        area_range = np.linspace(areas.min(), areas.max() * 1.1, 150)
+        
+        line_input = np.column_stack((
+            area_range,
+            np.full_like(area_range, bedrooms_val),
+            np.full_like(area_range, bathrooms_val),
+            np.full_like(area_range, stories_val)
+        ))
+        
+        predicted_line = model.predict(line_input)
 
-    st.pyplot(fig)
+        ax.plot(
+            area_range,
+            predicted_line,
+            color="green",
+            linewidth=2,
+            label=f"Linear Trend (Bedrooms={bedrooms_val}, Bath={bathrooms_val})"
+        )
 
-def _index_of_closest(X: ArrayLike, k: float) -> int:
-    X = np.asarray(X)
-    idx = (np.abs(X - k)).argmin()
-    return idx
+        ax.scatter(
+            [area_val],
+            [pred_price],
+            color="red",
+            s=120,
+            zorder=5,
+            label=f"Your Prediction: ${pred_price:,.0f}"
+        )
 
-if __name__ == '__main__':
+        ax.axvline(area_val, color="red", linestyle=":", alpha=0.5)
+        ax.axhline(pred_price, color="red", linestyle=":", alpha=0.5)
+
+        ax.set_title("Pricing Model: Area vs House Price", fontsize=13)
+        ax.set_xlabel("Area (sq ft)", fontsize=11)
+        ax.set_ylabel("Price ($)", fontsize=11)
+        ax.legend()
+        ax.grid(True, linestyle="--", alpha=0.6)
+
+        st.pyplot(fig)
+    else:
+        st.info("Select parameters in the sidebar on the left and click **'Calculate Prediction'**.")
+
+if __name__ == "__main__":
     create_streamlit_app()
