@@ -29,7 +29,7 @@ def create_streamlit_app():
     st.markdown(
         """
         This application predicts **house prices** based on physical parameters like area, 
-        number of bedrooms, bathrooms, and stories using a trained Linear Regression model.
+        number of bedrooms, bathrooms, and number of previous owners using a trained Linear Regression model.
         """
     )
 
